@@ -51,8 +51,10 @@ class ASVspoof2021_DF_LA:
             train_num_pos = 0
             train_num_neg = 0
             if DA_speed:
+                print('> Using Speed Augmentation')
                 trl = os.path.join(path_train, self.PATH_TRAIN_2024_SPEED)
             else:
+                print('> NOT Using Speed Augmentation')
                 trl = os.path.join(path_train, self.PATH_TRAIN_2024)
             for line in open(trl).readlines():
                 strI = line.replace('\n', '').split(' ')

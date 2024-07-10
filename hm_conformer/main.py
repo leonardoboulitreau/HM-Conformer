@@ -229,20 +229,25 @@ def run(process_id, args, experiment_args):
             train_sampler.set_epoch(epoch)
             train.train(epoch, framework, optimizer, train_loader, logger)
 
-            # tests
+            if logger is not None:
+                logger.log_metric('LR', scheduler.get_last_lr(), epoch)
+
+            # Tests
 
             # Test on Train
-            if epoch % 1 == 0:
-                eer_repo, scores, labels, filenames, eer, dcf, cllr = train.test(framework, traintest_loader, run_on_ddp=True)
-                if logger is not None:
-                    logger.log_metric('Train-EER-repo', eer_repo, epoch)
-                    logger.log_metric('Train-EER', eer, epoch)
-                    logger.log_metric('Train-DCF', dcf, epoch)
-                    logger.log_metric('Train-CLLR', cllr, epoch)
+            #if epoch % 1 == 0:
+            #    eer_repo, scores, labels, filenames, eer, dcf, cllr = train.test(framework, traintest_loader, run_on_ddp=True)
+            #    if logger is not None:
+            #        logger.log_metric('Train-EER-repo', eer_repo, epoch)
+            #        logger.log_metric('Train-EER', eer, epoch)
+            #        logger.log_metric('Train-DCF', dcf, epoch)
+            #        logger.log_metric('Train-CLLR', cllr, epoch)
 
+            # Test on Dev
             if epoch % 1 == 0:
                 cnt_early_stop += 1
                 eer_repo, scores, labels, filenames, eer, dcf, cllr = train.test(framework, dev2024_loader, run_on_ddp=True)
+                
                 if logger is not None:
                     logger.log_metric('Dev-EER-repo', eer_repo, epoch)
                     logger.log_metric('Dev-EER', eer, epoch)
@@ -259,6 +264,17 @@ def run(process_id, args, experiment_args):
                         for key, v in best_state_ft.items():
                             logger.save_model(
                                 f'check_point_DF_{key}_{epoch}', v)
+
+                if dcf < best_dcf_DF:
+                    cnt_early_stop = 0
+                    best_dcf_DF = dcf
+                    best_state_ft = framework.copy_state_dict()
+                    if logger is not None:
+                        logger.log_metric('BestDCF', dcf, epoch)
+                        for key, v in best_state_ft.items():
+                            logger.save_model(
+                                f'check_point_DF_{key}_{epoch}', v)
+
                 if cnt_early_stop >= 10:
                     break
                 

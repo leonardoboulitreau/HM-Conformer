@@ -32,7 +32,10 @@ def multiprocessing(
     
     all_files = glob.glob(path + '/flac/*.flac')
     all_files.sort()
-    all_files = all_files[395000:]
+
+    with open('/data/remaining.txt') as file:
+        all_files = [line.rstrip() for line in file]
+
     print(f"Number of {types[1 : ]}: {len(all_files)}")
 
     # multiprocessing
