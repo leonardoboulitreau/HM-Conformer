@@ -220,6 +220,7 @@ class Melspec(object):
         return (np.exp(mel / 1127.01048) - 1.0) * 700.0
         
     def _melfbank(self, melmin, melmax):
+        print('Building mel basis...')
         linear_freq = 1000.0
         mfbsize = self.mfbsize - 1
 
@@ -435,7 +436,72 @@ class Spectrogram(torch_nn.Module):
             sp_output = sp_amp
 
         # done
-        return sp_amp
+        return sp_output
+
+class MelSpectrogram(torch_nn.Module):
+    """ Spectrogram front-end
+    """
+    def __init__(self, fl, fs, fn, sr, 
+                 with_emphasis=True, with_delta=False, in_db=False):
+        super(MelSpectrogram, self).__init__()
+        self.fl = fl
+        self.fs = fs
+        self.fn = fn
+        self.sr = sr
+
+        # opts
+        self.with_emphasis = with_emphasis
+        self.with_delta = with_delta
+        self.in_db = in_db
+
+        # get filter bank
+        tmp_config = Melspec(sr, fl, fs, fn)
+        filter_bank = torch.tensor(tmp_config.melfb.T, dtype=torch.float32)
+        self.mel_fb = torch_nn.Parameter(filter_bank, requires_grad=False)
+
+        # buf to store window coefficients
+        self.window_buf = None
+        return
+    
+    def forward(self, x):
+        """
+        Param
+            x: 2D Tensor(batchm, length) 
+        
+        Return
+            lfcc_output: 3D Tensor(batch, frame, dim)
+        """
+        # pre-emphsis 
+        if self.with_emphasis:
+            x[:, 1:] = x[:, 1:]  - 0.97 * x[:, 0:-1]
+        
+        if self.window_buf is None:
+            self.window_buf = torch.hamming_window(self.fl).to(x.device)
+
+        # STFT      
+        x_stft = torch.stft(x, self.fn, self.fs, self.fl, window=self.window_buf, onesided=True, pad_mode='constant', return_complex=False)
+        
+
+        # amplitude
+        sp_amp = torch.norm(x_stft, 2, -1).pow(2).permute(0, 2, 1).contiguous()
+        print(sp_amp.shape)
+
+        msp_amp = torch.matmul(sp_amp, self.mel_fb)
+        print(msp_amp.shape)
+
+        if self.in_db:
+            msp_amp = torch.log10(msp_amp + torch.finfo(torch.float32).eps)
+
+        # Add delta coefficients
+        if self.with_delta:
+            sp_delta = delta(msp_amp)
+            sp_delta_delta = delta(sp_delta)
+            sp_output = torch.cat((msp_amp, sp_delta, sp_delta_delta), 2)
+        else:
+            sp_output = msp_amp
+
+        # done
+        return sp_output
 
 class MFCC(torch_nn.Module):
     """ Based on asvspoof.org baseline Matlab code.

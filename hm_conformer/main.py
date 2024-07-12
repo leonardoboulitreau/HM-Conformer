@@ -97,7 +97,11 @@ def run(process_id, args, experiment_args):
     preprocessing = egg_exp.framework.model.LFCC(args['sample_rate'], args['n_lfcc'], 
             args['coef'], args['n_fft'], args['win_length'], args['hop'], args['with_delta'], args['with_emphasis'], args['with_energy'],
             args['DA_frq_mask'], args['DA_frq_p'], args['DA_frq_mask_max'])
- 
+
+    #preprocessing = egg_exp.framework.model.MelSpectrogram(sample_rate = args['sample_rate'], coef = args['coef'], 
+    #        n_fft = args['n_fft'], win_length = args['win_length'], hop=args['hop'], with_delta=args['with_delta'], with_emphasis=args['with_emphasis'], in_db=False, frq_mask=args['DA_frq_mask'], 
+    #        p=args['DA_frq_p'], max=args['DA_frq_mask_max'])
+
     # frontend
     frontend = egg_exp.framework.model.HM_Conformer(bin_size=args['bin_size'], output_size=args['output_size'], input_layer=args['input_layer'],
             pos_enc_layer_type=args['pos_enc_layer_type'], linear_units=args['linear_units'], cnn_module_kernel=args['cnn_module_kernel'],
@@ -155,6 +159,7 @@ def run(process_id, args, experiment_args):
         ################## PROGRESS SET 2024 ##################
 
         eval2024_set = data_processing.TestSet(asvspoof.eval_set_2024, args['test_crop_size'])
+        print('Eval Crop Size = ', args['test_crop_size'])
         eval2024_loader = DataLoader(
             eval2024_set,
             num_workers=args['num_workers'],
@@ -207,6 +212,7 @@ def run(process_id, args, experiment_args):
     # ===================================================
     else:
         best_eer_DF = 100
+        best_dcf = 100
         best_state_DF = framework.copy_state_dict()
         cnt_early_stop = 0
 
@@ -265,9 +271,9 @@ def run(process_id, args, experiment_args):
                             logger.save_model(
                                 f'check_point_DF_{key}_{epoch}', v)
 
-                if dcf < best_dcf_DF:
+                if dcf < best_dcf:
                     cnt_early_stop = 0
-                    best_dcf_DF = dcf
+                    best_dcf = dcf
                     best_state_ft = framework.copy_state_dict()
                     if logger is not None:
                         logger.log_metric('BestDCF', dcf, epoch)
@@ -275,7 +281,7 @@ def run(process_id, args, experiment_args):
                             logger.save_model(
                                 f'check_point_DF_{key}_{epoch}', v)
 
-                if cnt_early_stop >= 10:
+                if cnt_early_stop >= 30:
                     break
                 
 
